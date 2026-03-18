@@ -1,0 +1,135 @@
+#include "mbed.h"
+#include "arm_book_lib.h"
+#include <math.h>
+
+typedef enum { NORMAL, WARNING, LOCKDOWN } system_state_t;
+
+void displayEventLog(int count) {
+    // This is a conceptual display; adjust pins based on your specific board
+    // For example, using the built-in LEDs as a 3-bit counter
+    printf("Lockdown triggered! Total count: %d\n", count);
+}
+int main()
+{
+    DigitalIn buttons[6] = {D2, D3, D4, D5, D6, D7};
+    DigitalOut alarmLed(LED1);          // Security Status (OFF = Unlocked)
+    DigitalOut incorrectCodeLed(LED3);  // Warning/Feedback LED
+    DigitalOut systemBlockedLed(LED2);  // Lockdown Status
+
+    for(int i=0; i<6; i++) buttons[i].mode(PullDown); 
+    
+    alarmLed = ON;
+    incorrectCodeLed = OFF;
+    systemBlockedLed = OFF;
+
+    Timer stateTimer;
+    system_state_t systemState = NORMAL;
+
+    int secretCode[4] = {2, 3, 4, 5}; 
+    int adminCode[4] = {1, 1, 1, 1};
+    int userEntryIndex = 0; 
+    int buttonsPressedThisTry = 0;    
+    int incorrectCodes = 0;   
+    bool buttonWasPressed = false;  
+    int lockdownCount = 0;
+
+    stateTimer.start(); // Keep timer running for fmod calculations 
+
+    while (true) {
+        int currentButton = -1;
+    
+        for(int i=0; i<6; i++) {
+            if (buttons[i]) currentButton = i;
+        }
+
+      switch (systemState) {
+
+            case NORMAL:
+                if (currentButton != -1 && !buttonWasPressed) {
+                    buttonWasPressed = true;
+                    buttonsPressedThisTry++;
+
+                    // Determine which code we are checking (User or Admin?)
+                    // Note: In NORMAL mode, we always check userCode.
+                    if (currentButton == secretCode[userEntryIndex]) {
+                        userEntryIndex++;
+                    }
+
+                    if (buttonsPressedThisTry == 4) {
+                        if (userEntryIndex == 4) {
+                            alarmLed = OFF; // UNLOCKED
+                            incorrectCodes = 0; 
+                            incorrectCodeLed = OFF;
+                            } 
+
+                    else {
+                        incorrectCodes++;
+                        
+                            // Check if this was the 3rd fail
+                            if (incorrectCodes == 3) {
+                                systemState = WARNING;
+                                stateTimer.reset();
+
+                            } else if (incorrectCodes >= 4) {
+                                systemState = LOCKDOWN;
+                                lockdownCount++;
+                                displayEventLog(lockdownCount);
+                                stateTimer.reset();
+                               
+                            // Check if this was the 4th fail (Post-Warning)
+                            }
+                        }
+                        // Reset attempt counters
+                        userEntryIndex = 0;
+                        buttonsPressedThisTry = 0;
+                    }
+                }
+                
+                break;
+                       
+            case WARNING:
+                // Slowly blinking (1Hz)
+                incorrectCodeLed = (fmod(stateTimer.read(), 1.0) < 0.5);
+                
+                if (stateTimer.read() > 30.0) {
+                    incorrectCodeLed = OFF;
+                    systemState = NORMAL; 
+                }
+                break;
+
+            case LOCKDOWN:
+                systemBlockedLed = ON; 
+                // Intermittent blink (faster)
+                incorrectCodeLed = (fmod(stateTimer.read(), 0.6) < 0.3);
+
+                // Lockdown only ends with Admin Override
+                if (currentButton != -1 && !buttonWasPressed) {
+                    buttonWasPressed = true;
+                    if (currentButton == adminCode[userEntryIndex]) {
+                        userEntryIndex++;
+                    } else {
+                        userEntryIndex = 0;
+                    }
+
+                    if (userEntryIndex == 4) {
+                        systemState = NORMAL;
+                        incorrectCodes = 0;
+                        userEntryIndex = 0;
+                        buttonsPressedThisTry = 0;
+                        systemBlockedLed = OFF;
+                        incorrectCodeLed = OFF;
+              
+                        // Door stays locked (alarmLed=ON) until a normal user code is entered
+                    }
+                }
+                break;
+        }
+
+        // --- C. INPUT RELEASE & CLEANUP ---
+        if (currentButton == -1) { 
+        buttonWasPressed = false;
+            }
+
+        ThisThread::sleep_for(10ms);
+   }
+}
