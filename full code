@@ -4,17 +4,13 @@
 
 typedef enum { NORMAL, WARNING, LOCKDOWN } system_state_t;
 
-void displayEventLog(int count) {
-    // This is a conceptual display; adjust pins based on your specific board
-    // For example, using the built-in LEDs as a 3-bit counter
-    printf("Lockdown triggered! Total count: %d\n", count);
-}
+
 int main()
 {
     DigitalIn buttons[6] = {D2, D3, D4, D5, D6, D7};
-    DigitalOut alarmLed(LED1);          // Security Status (OFF = Unlocked)
-    DigitalOut incorrectCodeLed(LED3);  // Warning/Feedback LED
-    DigitalOut systemBlockedLed(LED2);  // Lockdown Status
+    DigitalOut alarmLed(LED1);         
+    DigitalOut incorrectCodeLed(LED3);  
+    DigitalOut systemBlockedLed(LED2); 
 
     for(int i=0; i<6; i++) buttons[i].mode(PullDown); 
     
@@ -33,7 +29,7 @@ int main()
     bool buttonWasPressed = false;  
     int lockdownCount = 0;
 
-    stateTimer.start(); // Keep timer running for fmod calculations 
+    stateTimer.start(); 
 
     while (true) {
         int currentButton = -1;
@@ -49,15 +45,14 @@ int main()
                     buttonWasPressed = true;
                     buttonsPressedThisTry++;
 
-                    // Determine which code we are checking (User or Admin?)
-                    // Note: In NORMAL mode, we always check userCode.
+                   
                     if (currentButton == secretCode[userEntryIndex]) {
                         userEntryIndex++;
                     }
 
                     if (buttonsPressedThisTry == 4) {
                         if (userEntryIndex == 4) {
-                            alarmLed = OFF; // UNLOCKED
+                            alarmLed = OFF; 
                             incorrectCodes = 0; 
                             incorrectCodeLed = OFF;
                             } 
@@ -76,10 +71,10 @@ int main()
                                 displayEventLog(lockdownCount);
                                 stateTimer.reset();
                                
-                            // Check if this was the 4th fail (Post-Warning)
+                            
                             }
                         }
-                        // Reset attempt counters
+                      
                         userEntryIndex = 0;
                         buttonsPressedThisTry = 0;
                     }
@@ -88,7 +83,7 @@ int main()
                 break;
                        
             case WARNING:
-                // Slowly blinking (1Hz)
+               
                 incorrectCodeLed = (fmod(stateTimer.read(), 1.0) < 0.5);
                 
                 if (stateTimer.read() > 30.0) {
@@ -99,10 +94,9 @@ int main()
 
             case LOCKDOWN:
                 systemBlockedLed = ON; 
-                // Intermittent blink (faster)
+               
                 incorrectCodeLed = (fmod(stateTimer.read(), 0.6) < 0.3);
 
-                // Lockdown only ends with Admin Override
                 if (currentButton != -1 && !buttonWasPressed) {
                     buttonWasPressed = true;
                     if (currentButton == adminCode[userEntryIndex]) {
@@ -119,13 +113,13 @@ int main()
                         systemBlockedLed = OFF;
                         incorrectCodeLed = OFF;
               
-                        // Door stays locked (alarmLed=ON) until a normal user code is entered
+                        
                     }
                 }
                 break;
         }
 
-        // --- C. INPUT RELEASE & CLEANUP ---
+       
         if (currentButton == -1) { 
         buttonWasPressed = false;
             }
