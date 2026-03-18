@@ -60,7 +60,7 @@ int main()
                     else {
                         incorrectCodes++;
                         
-                            // Check if this was the 3rd fail
+                           
                             if (incorrectCodes == 3) {
                                 systemState = WARNING;
                                 stateTimer.reset();
